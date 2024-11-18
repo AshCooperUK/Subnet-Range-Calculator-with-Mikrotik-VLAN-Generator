@@ -1,4 +1,8 @@
 Subnet Range Calculator and Mikrotik VLAN Script Generator
+You can view this WebApp by going to the following URL:
+
+https://html-preview.github.io/?url=https://raw.githubusercontent.com/AshCooperUK/Subnet-Range-Calculator-with-Mikrotik-VLAN-Generator/refs/heads/main/subnetcalc-v4-18112024.html
+
 
 **Core Features**
 
