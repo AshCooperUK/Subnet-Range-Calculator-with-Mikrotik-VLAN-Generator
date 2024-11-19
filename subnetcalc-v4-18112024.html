@@ -254,35 +254,39 @@ function generateVlanScript() {
 
 
 
-        function generateRevertScript() {
-            if (addedSubnets.length === 0) {
-                document.getElementById("result").innerHTML = `<p class="error">No subnets to revert.</p>`;
-                return;
-            }
+function generateRevertScript() {
+    if (addedSubnets.length === 0) {
+        document.getElementById("result").innerHTML = `<p class="error">No subnets to revert.</p>`;
+        return;
+    }
 
-            let script = "";
+    let script = "";
 
-            addedSubnets.forEach((subnet) => {
-                const vlanId = parseInt(subnet.network.split('.')[2]);
-                const vlanName = `vlan-${document.getElementById("interfaceNames").value}-${vlanId}`;
-                const routerAddress = `${subnet.network.split('.')[0]}.${subnet.network.split('.')[1]}.${vlanId}.1`;
+    addedSubnets.forEach((subnet) => {
+        // Extract the last octet of the highest subnet IP for VLAN ID
+        const vlanId = parseInt(subnet.broadcast.split('.')[2]); // Use the 3rd octet of the broadcast address
+        const vlanName = `vlan-${document.getElementById("interfaceNames").value}-${subnet.range[0]}-${subnet.range[1]}`;
+        const routerAddress = subnet.range[0]; // First usable IP in the range
+        const subnetMaskCIDR = 32 - Math.log2(subnet.usableHosts + 2); // Calculate the correct CIDR notation
 
-                // Remove VLAN Configuration
-                script += `/interface vlan remove [find name=${vlanName}]\n`;
-                script += `/ip address remove [find address~"${routerAddress}"]\n`;
-                script += `/ip pool remove [find name=pool-${vlanName}]\n`;
-                script += `/ip dhcp-server remove [find name=dhcp-${vlanName}]\n`;
-                script += `/interface list member remove [find interface=${vlanName}]\n`;
+        // Remove VLAN Configuration
+        script += `/interface vlan remove [find name=${vlanName}]\n`;
+        script += `/ip address remove [find address~"${routerAddress}/${subnetMaskCIDR}"]\n`;
+        script += `/ip pool remove [find name=pool-${vlanName}]\n`;
+        script += `/ip dhcp-server remove [find name=dhcp-${vlanName}]\n`;
+        script += `/interface list member remove [find interface=${vlanName}]\n`;
 
-                // Remove from Firewall Address List
-                script += `/ip firewall address-list remove [find address=${subnet.network} list=VLAN]\n`;
-            });
+        // Remove from Firewall Address List
+        script += `/ip firewall address-list remove [find address=${subnet.network}/${subnetMaskCIDR} list=VLAN]\n`;
+    });
 
-            // Remove InterVLAN Block Rule
-            script += `/ip firewall filter remove [find action=drop chain=forward dst-address-list="VLAN" src-address-list="VLAN"]\n`;
+    // Remove InterVLAN Block Rule
+    script += `/ip firewall filter remove [find action=drop chain=forward dst-address-list="VLAN" src-address-list="VLAN"]\n`;
 
-            document.getElementById("vlanScriptOutput").value = script;
-        }
+    document.getElementById("vlanScriptOutput").value = script;
+    document.getElementById("result").innerHTML = `<p class="success">MikroTik Revert script generated successfully.</p>`;
+}
+        
 
         function copyToClipboard() {
             const script = document.getElementById("vlanScriptOutput").value;
