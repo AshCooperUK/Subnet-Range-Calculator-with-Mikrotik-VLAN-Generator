@@ -208,7 +208,7 @@
             `;
         }
 
-        function generateVlanScript() {
+function generateVlanScript() {
     const interfaceName = document.getElementById("interfaceNames").value;
     const blockInterVlan = document.getElementById("blockInterVlan").checked;
 
@@ -220,14 +220,14 @@
     let script = "";
 
     addedSubnets.forEach((subnet) => {
-        const vlanId = parseInt(subnet.network.split('.')[2]);
-        const vlanName = `vlan-${interfaceName}-${vlanId}`;
-        const routerAddress = `${subnet.network.split('.')[0]}.${subnet.network.split('.')[1]}.${vlanId}.1`;
-        const dhcpRangeStart = `${subnet.range[0].split('.')[0]}.${subnet.range[0].split('.')[1]}.${subnet.range[0].split('.')[2]}.2`; // Start from .2
+        // Extract the last octet of the highest subnet IP for the VLAN ID
+        const vlanId = parseInt(subnet.broadcast.split('.')[2]); // Use the 3rd octet of the broadcast address
+        const vlanName = `vlan-${interfaceName}-${subnet.range[0]}-${subnet.range[1]}`;
+        const routerAddress = subnet.range[0]; // First usable IP in the range
+        const dhcpRangeStart = subnet.range[0];
         const dhcpRangeEnd = subnet.range[1];
-
-        // Extract the subnet mask from the added subnet object
-        const subnetMask = subnet.mask || 24; // Default to /24 if not explicitly set
+        const subnetMaskCIDR = 32 - Math.log2(subnet.usableHosts + 2); // Calculate the correct CIDR notation
+        const subnetMask = subnetMaskCIDR; // Ensure it aligns with the subnet configuration
 
         // VLAN Configuration
         script += `/interface vlan add name=${vlanName} vlan-id=${vlanId} interface=${interfaceName}\n`;
@@ -240,7 +240,7 @@
         script += `/ip dhcp-server network add address=${subnet.network}/${subnetMask} dns-server=${routerAddress} gateway=${routerAddress} netmask=${subnetMask}\n`;
 
         // Firewall Address List Entry
-        script += `/ip firewall address-list add address=${subnet.network} disabled=no list=VLAN comment="Add ${subnet.network} to VLAN address list"\n`;
+        script += `/ip firewall address-list add address=${subnet.network}/${subnetMask} disabled=no list=VLAN comment="${subnet.network}/${subnetMask} VLAN address list"\n`;
     });
 
     // Add InterVLAN Blocking Rule
@@ -251,6 +251,7 @@
     document.getElementById("vlanScriptOutput").value = script;
     document.getElementById("result").innerHTML = `<p class="success">MikroTik VLAN script generated successfully.</p>`;
 }
+
 
 
         function generateRevertScript() {
