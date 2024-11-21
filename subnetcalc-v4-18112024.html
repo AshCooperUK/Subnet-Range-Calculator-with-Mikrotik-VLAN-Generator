@@ -90,7 +90,7 @@
         </select>
         <br>
         <label>
-            <input type="checkbox" id="blockInterVlan"> Block InterVLAN Connection
+            <input type="checkbox" id="blockInterVlan" checked> Block InterVLAN Connection
         </label>
         <br>
         <button type="button" onclick="updateRanges()">Update Ranges</button>
@@ -153,41 +153,43 @@
         }
 
         function calculateSubnet() {
-            const ipAddress = document.getElementById("ipAddress").value;
-            const subnetMask = parseInt(document.getElementById("subnetMask").value);
+    const ipAddress = document.getElementById("ipAddress").value;
+    const subnetMask = parseInt(document.getElementById("subnetMask").value);
 
-            if (!validateIP(ipAddress)) {
-                document.getElementById("result").innerHTML = `<p class="error">Invalid IP Address</p>`;
-                return;
-            }
+    if (!validateIP(ipAddress)) {
+        document.getElementById("result").innerHTML = `<p class="error">Invalid IP Address</p>`;
+        return;
+    }
 
-            const [network, broadcast, range, usableHosts, fullSubnetMask] = calculateRange(ipAddress, subnetMask);
+    const [network, broadcast, range, usableHosts, fullSubnetMask] = calculateRange(ipAddress, subnetMask);
 
-            if (isOverlapping(network, broadcast)) {
-                document.getElementById("result").innerHTML = `<p class="error">Error: The IP range overlaps with an existing subnet.</p>`;
-                return;
-            }
+    if (isOverlapping(network, broadcast)) {
+        document.getElementById("result").innerHTML = `<p class="error">Error: The IP range overlaps with an existing subnet.</p>`;
+        return;
+    }
 
-            addedSubnets.push({ network, broadcast, range, usableHosts, fullSubnetMask });
-            totalClients += usableHosts;
+    // Store the user-provided IP address along with the subnet details
+    addedSubnets.push({ ipAddress, network, broadcast, range, usableHosts, fullSubnetMask });
+    totalClients += usableHosts;
 
-            const networkList = document.getElementById("networkList");
-            const networkItem = document.createElement("div");
-            networkItem.className = "network-item";
-            networkItem.innerHTML = `
-                <h3>Subnet: ${ipAddress} /${subnetMask}</h3>
-                <p><strong>Subnet Mask:</strong> ${fullSubnetMask}</p>
-                <p><strong>Network Address:</strong> ${network}</p>
-                <p><strong>Broadcast Address:</strong> ${broadcast}</p>
-                <p><strong>Range:</strong> ${range[0]} - ${range[1]}</p>
-                <p><strong>Usable Clients:</strong> ${usableHosts}</p>
-            `;
-            networkList.appendChild(networkItem);
+    const networkList = document.getElementById("networkList");
+    const networkItem = document.createElement("div");
+    networkItem.className = "network-item";
+    networkItem.innerHTML = `
+        <h3>Subnet: ${ipAddress}/${subnetMask}</h3>
+        <p><strong>Subnet Mask:</strong> ${fullSubnetMask}</p>
+        <p><strong>Network Address:</strong> ${network}</p>
+        <p><strong>Broadcast Address:</strong> ${broadcast}</p>
+        <p><strong>Range:</strong> ${range[0]} - ${range[1]}</p>
+        <p><strong>Usable Clients:</strong> ${usableHosts}</p>
+    `;
+    networkList.appendChild(networkItem);
 
-            updateTotalClients();
+    updateTotalClients();
 
-            document.getElementById("result").innerHTML = `<p style="color: green;">Subnet added successfully.</p>`;
-        }
+    document.getElementById("result").innerHTML = `<p style="color: green;">Subnet added successfully.</p>`;
+}
+
 
         function removeLastSubnet() {
             const networkList = document.getElementById("networkList");
@@ -212,44 +214,55 @@ function generateVlanScript() {
     const interfaceName = document.getElementById("interfaceNames").value;
     const blockInterVlan = document.getElementById("blockInterVlan").checked;
 
+    if (!interfaceName) {
+        document.getElementById("result").innerHTML = `<p class="error">Interface name is required to generate VLAN script.</p>`;
+        return;
+    }
+
     if (addedSubnets.length === 0) {
         document.getElementById("result").innerHTML = `<p class="error">No subnets to generate VLAN script for.</p>`;
         return;
     }
 
     let script = "";
+    let vlanIdArray = []; // Array to store VLAN IDs for each subnet
 
     addedSubnets.forEach((subnet) => {
-        // Extract the last octet of the highest subnet IP for the VLAN ID
-        const vlanId = parseInt(subnet.broadcast.split('.')[2]); // Use the 3rd octet of the broadcast address
-        const vlanName = `vlan-${interfaceName}-${subnet.range[0]}-${subnet.range[1]}`;
-        const routerAddress = subnet.range[0]; // First usable IP in the range
+        // Use the stored user-provided IP address to calculate the VLAN ID
+        const vlanId = parseInt(subnet.ipAddress.split('.')[2]); // Third octet of the user-provided IP
+        vlanIdArray.push(vlanId); // Store the VLAN ID in the array
+
+        const networkAddress = subnet.network; // Network address of the subnet
+        const gatewayAddress = `${subnet.ipAddress.split('.')[0]}.${subnet.ipAddress.split('.')[1]}.${subnet.ipAddress.split('.')[2]}.1`; // Gateway derived from user-provided IP
         const dhcpRangeStart = subnet.range[0];
         const dhcpRangeEnd = subnet.range[1];
         const subnetMaskCIDR = 32 - Math.log2(subnet.usableHosts + 2); // Calculate the correct CIDR notation
-        const subnetMask = subnetMaskCIDR; // Ensure it aligns with the subnet configuration
+
+        const vlanName = `vlan-${interfaceName}-${subnet.range[0]}-${subnet.range[1]}`;
 
         // VLAN Configuration
         script += `/interface vlan add name=${vlanName} vlan-id=${vlanId} interface=${interfaceName}\n`;
-        script += `/ip address add address=${routerAddress}/${subnetMask} interface=${vlanName}\n`;
+        script += `/ip address add address=${gatewayAddress}/${subnetMaskCIDR} interface=${vlanName}\n`;
         script += `/ip pool add name=pool-${vlanName} ranges=${dhcpRangeStart}-${dhcpRangeEnd}\n`;
         script += `/ip dhcp-server add address-pool=pool-${vlanName} name=dhcp-${vlanName} interface=${vlanName}\n`;
         script += `/interface list member add disabled=no interface=${vlanName} list=LAN\n`;
 
         // DHCP Server Network Configuration
-        script += `/ip dhcp-server network add address=${subnet.network}/${subnetMask} dns-server=${routerAddress} gateway=${routerAddress} netmask=${subnetMask}\n`;
-
-        // Firewall Address List Entry
-        script += `/ip firewall address-list add address=${subnet.network}/${subnetMask} disabled=no list=VLAN comment="${subnet.network}/${subnetMask} VLAN address list"\n`;
+        if (subnet.network && !isNaN(subnetMaskCIDR)) {
+            script += `/ip dhcp-server network add address=${networkAddress}/${subnetMaskCIDR} dns-server=${gatewayAddress} gateway=${gatewayAddress} netmask=${subnetMaskCIDR}\n`;
+            script += `/ip firewall address-list add address=${networkAddress}/${subnetMaskCIDR} disabled=no list=VLAN comment="${networkAddress}/${subnetMaskCIDR} VLAN address list"\n`;
+        }
     });
 
     // Add InterVLAN Blocking Rule
-    if (blockInterVlan) {
+    if (blockInterVlan && addedSubnets.length > 0) {
         script += `/ip firewall filter add action=drop chain=forward disabled=no dst-address-list="VLAN" src-address-list="VLAN" log=no log-prefix=""\n`;
     }
 
     document.getElementById("vlanScriptOutput").value = script;
     document.getElementById("result").innerHTML = `<p class="success">MikroTik VLAN script generated successfully.</p>`;
+
+    console.log("Generated VLAN IDs:", vlanIdArray); // Debugging: Output the VLAN ID array
 }
 
 
@@ -263,21 +276,22 @@ function generateRevertScript() {
     let script = "";
 
     addedSubnets.forEach((subnet) => {
-        // Extract the last octet of the highest subnet IP for VLAN ID
-        const vlanId = parseInt(subnet.broadcast.split('.')[2]); // Use the 3rd octet of the broadcast address
+        // Use the stored user-provided IP address to calculate the VLAN ID
+        const vlanId = parseInt(subnet.ipAddress.split('.')[2]); // Third octet of the user-provided IP
         const vlanName = `vlan-${document.getElementById("interfaceNames").value}-${subnet.range[0]}-${subnet.range[1]}`;
-        const routerAddress = subnet.range[0]; // First usable IP in the range
+        const gatewayAddress = `${subnet.ipAddress.split('.')[0]}.${subnet.ipAddress.split('.')[1]}.${subnet.ipAddress.split('.')[2]}.1`; // Gateway derived from user-provided IP
+        const networkAddress = subnet.network; // Network address of the subnet
         const subnetMaskCIDR = 32 - Math.log2(subnet.usableHosts + 2); // Calculate the correct CIDR notation
 
         // Remove VLAN Configuration
         script += `/interface vlan remove [find name=${vlanName}]\n`;
-        script += `/ip address remove [find address~"${routerAddress}/${subnetMaskCIDR}"]\n`;
+        script += `/ip address remove [find address~"${gatewayAddress}/${subnetMaskCIDR}"]\n`;
         script += `/ip pool remove [find name=pool-${vlanName}]\n`;
         script += `/ip dhcp-server remove [find name=dhcp-${vlanName}]\n`;
         script += `/interface list member remove [find interface=${vlanName}]\n`;
 
         // Remove from Firewall Address List
-        script += `/ip firewall address-list remove [find address=${subnet.network}/${subnetMaskCIDR} list=VLAN]\n`;
+        script += `/ip firewall address-list remove [find address=${networkAddress}/${subnetMaskCIDR} list=VLAN]\n`;
     });
 
     // Remove InterVLAN Block Rule
@@ -286,7 +300,7 @@ function generateRevertScript() {
     document.getElementById("vlanScriptOutput").value = script;
     document.getElementById("result").innerHTML = `<p class="success">MikroTik Revert script generated successfully.</p>`;
 }
-        
+
 
         function copyToClipboard() {
             const script = document.getElementById("vlanScriptOutput").value;
