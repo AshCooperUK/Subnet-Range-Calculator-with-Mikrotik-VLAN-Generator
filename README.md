@@ -69,15 +69,15 @@ Input:
 - Replace VLAN ID 0 with 4094: Checked
 
 Output:<br>
-`/interface vlan add name=vlan-bridge-192.168.88.1-192.168.95.254 vlan-id=88 interface=bridge
-/ip address add address=192.168.88.1/20 interface=vlan-bridge-192.168.88.1-192.168.95.254
-/ip pool add name=pool-vlan-bridge-192.168.88.1-192.168.95.254 ranges=192.168.88.2-192.168.95.254
-/ip dhcp-server add address-pool=pool-vlan-bridge-192.168.88.1-192.168.95.254 name=dhcp-vlan-bridge-192.168.88.1-192.168.95.254 interface=vlan-bridge-192.168.88.1-192.168.95.254
-/interface list member add disabled=no interface=vlan-bridge-192.168.88.1-192.168.95.254 list=LAN
-/ip dhcp-server network add address=192.168.88.0/20 dns-server=192.168.88.1 gateway=192.168.88.1 netmask=20
-/ip firewall address-list add address=192.168.88.0/20 disabled=no list=VLAN comment="192.168.88.0/20 VLAN address list"
-/ip firewall filter add action=drop chain=forward disabled=no dst-address-list="VLAN" src-address-list="VLAN" log=no log-prefix=""
-`
+`/interface vlan add name=vlan-bridge-192.168.88.1-192.168.95.254 vlan-id=88 interface=bridge`<br>
+`/ip address add address=192.168.88.1/20 interface=vlan-bridge-192.168.88.1-192.168.95.254`<br>
+`/ip pool add name=pool-vlan-bridge-192.168.88.1-192.168.95.254 ranges=192.168.88.2-192.168.95.254`<br>
+`/ip dhcp-server add address-pool=pool-vlan-bridge-192.168.88.1-192.168.95.254 name=dhcp-vlan-bridge-192.168.88.1-192.168.95.254 interface=vlan-bridge-192.168.88.1-192.168.95.254`<br>
+`/interface list member add disabled=no interface=vlan-bridge-192.168.88.1-192.168.95.254 list=LAN`<br>
+`/ip dhcp-server network add address=192.168.88.0/20 dns-server=192.168.88.1 gateway=192.168.88.1 netmask=20`<br>
+`/ip firewall address-list add address=192.168.88.0/20 disabled=no list=VLAN comment="192.168.88.0/20 VLAN address list"`<br>
+`/ip firewall filter add action=drop chain=forward disabled=no dst-address-list="VLAN" src-address-list="VLAN" log=no log-prefix=""`<br>
+
 ### Known Limitations
 - The tool is designed specifically for MikroTik RouterOS and may not generate compatible scripts for other networking devices.
 - Requires manual input of the initial IP address and interface details.
