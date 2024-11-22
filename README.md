@@ -7,6 +7,27 @@ https://html-preview.github.io/?url=https://raw.githubusercontent.com/AshCooperU
 ## Subnet Range Calculator with VLAN Generators
 This is a web-based tool designed to help network administrators calculate subnet ranges and generate VLAN configuration scripts for MikroTik devices. The tool also supports generating revert scripts to easily remove configurations, making it an invaluable resource for managing VLANs and DHCP configurations.
 
+**Type of Code**
+This is a HTML and JavaScript-based web application. It combines:
+  - HTML: To define the structure and user interface of the application.
+  - CSS: Inline styles are used to style the interface.
+  - JavaScript: To handle user interactions, perform subnet calculations, and generate MikroTik scripts.
+
+**How to Run It**<br>
+You can run this code locally in any modern web browser. Here’s how:
+
+**Save the Code:**<br>
+Copy the full code into a text editor and save it with an .html extension, e.g., subnet-calculator.html.
+
+**Open in a Browser:**<br>
+Double-click the saved file, or right-click it and choose Open With > Browser (e.g., Chrome, Firefox, Edge).
+
+**Interacting with the Application:**
+  - Enter an IP address and select a subnet mask.
+  - Add subnets using the "Add Subnet" button.
+  - Generate MikroTik VLAN or revert scripts using the respective buttons.
+  - Copy the generated script to your clipboard for use on MikroTik devices.
+
 **Features**
 
 1. Subnet Range Calculation:
