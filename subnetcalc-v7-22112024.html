@@ -92,6 +92,10 @@
         <label>
             <input type="checkbox" id="blockInterVlan" checked> Block InterVLAN Connection
         </label>
+		<label>
+			<input type="checkbox" id="replaceVlanIdZero" checked> Replace VLAN ID 0 with 4094
+		</label>
+
         <br>
         <button type="button" onclick="updateRanges()">Update Ranges</button>
         <button type="button" onclick="calculateSubnet()">Add Subnet</button>
@@ -213,6 +217,7 @@
 function generateVlanScript() {
     const interfaceName = document.getElementById("interfaceNames").value;
     const blockInterVlan = document.getElementById("blockInterVlan").checked;
+    const replaceVlanIdZero = document.getElementById("replaceVlanIdZero").checked;
 
     if (!interfaceName) {
         document.getElementById("result").innerHTML = `<p class="error">Interface name is required to generate VLAN script.</p>`;
@@ -229,12 +234,18 @@ function generateVlanScript() {
 
     addedSubnets.forEach((subnet) => {
         // Use the stored user-provided IP address to calculate the VLAN ID
-        const vlanId = parseInt(subnet.ipAddress.split('.')[2]); // Third octet of the user-provided IP
+        let vlanId = parseInt(subnet.ipAddress.split('.')[2]); // Third octet of the user-provided IP
+
+        // Replace VLAN ID 0 with 4094 if the checkbox is selected
+        if (vlanId === 0 && replaceVlanIdZero) {
+            vlanId = 4094;
+        }
+
         vlanIdArray.push(vlanId); // Store the VLAN ID in the array
 
         const networkAddress = subnet.network; // Network address of the subnet
         const gatewayAddress = `${subnet.ipAddress.split('.')[0]}.${subnet.ipAddress.split('.')[1]}.${subnet.ipAddress.split('.')[2]}.1`; // Gateway derived from user-provided IP
-        const dhcpRangeStart = subnet.range[0];
+        const dhcpRangeStart = incrementIP(subnet.range[0]); // Add 1 to the starting IP
         const dhcpRangeEnd = subnet.range[1];
         const subnetMaskCIDR = 32 - Math.log2(subnet.usableHosts + 2); // Calculate the correct CIDR notation
 
@@ -266,40 +277,64 @@ function generateVlanScript() {
 }
 
 
+		function incrementIP(ip) {
+			const parts = ip.split('.').map(Number);
+			parts[3] += 1; // Increment the last octet
+			if (parts[3] > 255) {
+				parts[3] = 0;
+				parts[2] += 1;
+			}
+			if (parts[2] > 255) {
+				parts[2] = 0;
+				parts[1] += 1;
+			}
+			if (parts[1] > 255) {
+				parts[1] = 0;
+				parts[0] += 1;
+			}
+			return parts.join('.');
+		}
 
-function generateRevertScript() {
-    if (addedSubnets.length === 0) {
-        document.getElementById("result").innerHTML = `<p class="error">No subnets to revert.</p>`;
-        return;
-    }
+		function generateRevertScript() {
+			if (addedSubnets.length === 0) {
+				document.getElementById("result").innerHTML = `<p class="error">No subnets to revert.</p>`;
+				return;
+			}
 
-    let script = "";
+			let script = "";
 
-    addedSubnets.forEach((subnet) => {
-        // Use the stored user-provided IP address to calculate the VLAN ID
-        const vlanId = parseInt(subnet.ipAddress.split('.')[2]); // Third octet of the user-provided IP
-        const vlanName = `vlan-${document.getElementById("interfaceNames").value}-${subnet.range[0]}-${subnet.range[1]}`;
-        const gatewayAddress = `${subnet.ipAddress.split('.')[0]}.${subnet.ipAddress.split('.')[1]}.${subnet.ipAddress.split('.')[2]}.1`; // Gateway derived from user-provided IP
-        const networkAddress = subnet.network; // Network address of the subnet
-        const subnetMaskCIDR = 32 - Math.log2(subnet.usableHosts + 2); // Calculate the correct CIDR notation
+			addedSubnets.forEach((subnet) => {
+				// Use the stored user-provided IP address to calculate the VLAN ID
+				const vlanId = parseInt(subnet.ipAddress.split('.')[2]); // Third octet of the user-provided IP
+				const vlanName = `vlan-${document.getElementById("interfaceNames").value}-${subnet.range[0]}-${subnet.range[1]}`;
 
-        // Remove VLAN Configuration
-        script += `/interface vlan remove [find name=${vlanName}]\n`;
-        script += `/ip address remove [find address~"${gatewayAddress}/${subnetMaskCIDR}"]\n`;
-        script += `/ip pool remove [find name=pool-${vlanName}]\n`;
-        script += `/ip dhcp-server remove [find name=dhcp-${vlanName}]\n`;
-        script += `/interface list member remove [find interface=${vlanName}]\n`;
+				// Increment the starting IP of the DHCP range to match the generated script
+				const dhcpRangeStart = incrementIP(subnet.range[0]); // Add 1 to the starting IP
+				const gatewayAddress = `${subnet.ipAddress.split('.')[0]}.${subnet.ipAddress.split('.')[1]}.${subnet.ipAddress.split('.')[2]}.1`; // Gateway derived from user-provided IP
+				const networkAddress = subnet.network; // Network address of the subnet
+				const subnetMaskCIDR = 32 - Math.log2(subnet.usableHosts + 2); // Calculate the correct CIDR notation
 
-        // Remove from Firewall Address List
-        script += `/ip firewall address-list remove [find address=${networkAddress}/${subnetMaskCIDR} list=VLAN]\n`;
-    });
+				// Add a comment for clarity
+				script += `# Revert configuration for Subnet ${subnet.ipAddress}/${subnetMaskCIDR}\n`;
 
-    // Remove InterVLAN Block Rule
-    script += `/ip firewall filter remove [find action=drop chain=forward dst-address-list="VLAN" src-address-list="VLAN"]\n`;
+				// Remove VLAN Configuration
+				script += `/interface vlan remove [find name=${vlanName}]\n`;
+				script += `/ip address remove [find address~"${gatewayAddress}/${subnetMaskCIDR}"]\n`;
+				script += `/ip pool remove [find name=pool-${vlanName}]\n`;
+				script += `/ip dhcp-server remove [find name=dhcp-${vlanName}]\n`;
+				script += `/interface list member remove [find interface=${vlanName}]\n`;
 
-    document.getElementById("vlanScriptOutput").value = script;
-    document.getElementById("result").innerHTML = `<p class="success">MikroTik Revert script generated successfully.</p>`;
-}
+				// Remove from Firewall Address List
+				script += `/ip firewall address-list remove [find address=${networkAddress}/${subnetMaskCIDR} list=VLAN]\n\n`;
+			});
+
+			// Remove InterVLAN Block Rule
+			script += `# Remove InterVLAN Blocking Rule\n`;
+			script += `/ip firewall filter remove [find action=drop chain=forward dst-address-list="VLAN" src-address-list="VLAN"]\n`;
+
+			document.getElementById("vlanScriptOutput").value = script;
+			document.getElementById("result").innerHTML = `<p class="success">MikroTik Revert script generated successfully.</p>`;
+		}
 
 
         function copyToClipboard() {
