@@ -68,7 +68,7 @@ Input:
 - IP Address: 192.168.88.1/20
 - Replace VLAN ID 0 with 4094: Checked
 
-Output:
+Output:<br>
 `/interface vlan add name=vlan-bridge-192.168.88.1-192.168.95.254 vlan-id=88 interface=bridge
 /ip address add address=192.168.88.1/20 interface=vlan-bridge-192.168.88.1-192.168.95.254
 /ip pool add name=pool-vlan-bridge-192.168.88.1-192.168.95.254 ranges=192.168.88.2-192.168.95.254
