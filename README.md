@@ -9,9 +9,9 @@ This is a web-based tool designed to help network administrators calculate subne
 
 **Type of Code**
 This is a HTML and JavaScript-based web application. It combines:
-  - HTML: To define the structure and user interface of the application.
-  - CSS: Inline styles are used to style the interface.
-  - JavaScript: To handle user interactions, perform subnet calculations, and generate MikroTik scripts.
+  - **HTML:** To define the structure and user interface of the application.
+  - **CSS:** Inline styles are used to style the interface.
+  - **JavaScript:** To handle user interactions, perform subnet calculations, and generate MikroTik scripts.
 
 **How to Run It**<br>
 You can run this code locally in any modern web browser. Here’s how:
